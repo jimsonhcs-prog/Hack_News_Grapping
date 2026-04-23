@@ -177,7 +177,7 @@ def main():
             
         new_articles = []
         
-        # 每次掃描檢查最新的 10 則
+# 每次掃描檢查最新的 10 則
         for entry in feed.entries[:10]:
             # 防重複檢查
             if is_new_link(entry.link):
@@ -194,7 +194,8 @@ def main():
                     "content": full_content[:1500] # 截斷內文以節省 Token
                 })
             else:
-                pass # 已讀文章，安靜跳過
+                # 👇 加上這行日誌，讓「安靜跳過」變成「看得到的跳過」
+                print(f"  ⏭️ 跳過已讀文章：{entry.title}")
                 
         # 批次處理：每 3 篇文章打包一次發給 Gemini，優化效能與配額
         batch_size = 3
