@@ -146,6 +146,10 @@ def process_batch(source_name, articles):
             
         except Exception as e:
             error_msg = str(e)
+            
+            # 👇 就是這行！這是拔掉遮罩的終極指令，讓 Google 告訴我們它到底在抱怨什麼
+            print(f"🛑 [深度除錯] 來自 Google 的真實報錯：\n{error_msg}\n-------------------")
+            
             # 判斷是否為 429 頻率限制
             if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
                 wait_time = (attempt + 1) * 15 # 第一次等15秒，第二次等30秒...
@@ -154,8 +158,7 @@ def process_batch(source_name, articles):
             else:
                 print(f"❌ AI 處理發生嚴重錯誤 ({source_name}): {error_msg}")
                 break # 如果不是 429，就直接放棄該批次
-
-    print(f"❌ 批次處理失敗：已達到最大重試次數 ({source_name})")
+                
     
 # ================= 4. 主程式流程 =================
 
