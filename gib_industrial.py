@@ -90,13 +90,12 @@ def send_to_gas(message):
 # ================= 3. AI 批次處理模組 =================
 
 def process_batch(source_name, articles):
-    """將收集好的文章批次送給 Gemini 進行結構化分析"""
+    """將收集好的文章批次送給 Gemini 進行結構化分析 (含自動重試機制)"""
     if not articles:
         return
     
     client = genai.Client(api_key=GEMINI_API_KEY)
     
-    # 定義嚴格的 JSON 輸出格式
     prompt = f"""
     你是一位資深科技趨勢分析師。請分析以下來自【{source_name}】的 {len(articles)} 篇文章。
     請直接輸出一個 JSON 陣列，不要包含任何 Markdown 標記（如 ```json）。
@@ -112,39 +111,52 @@ def process_batch(source_name, articles):
     {json.dumps(articles, ensure_ascii=False)}
     """
     
-    try:
-        print(f"🤖 交由 Gemini 處理批次 ({len(articles)} 篇)...")
-        response = client.models.generate_content(
-            model="gemini-3-flash-preview",
-            contents=prompt,
-            config={'response_mime_type': 'application/json'}
-        )
-        
-        insights = json.loads(response.text)
-        
-        # 逐筆發送處理結果
-        for item in insights:
-            # 1. 組合 Telegram 訊息
-            tg_msg = (
-                f"📡 *[{source_name}]* \n\n"
-                f"🚀 *{item.get('title', '無標題')}*\n\n"
-                f"📝 *重點摘要*：\n{item.get('summary', '')}\n\n"
-                f"💡 *技術洞察*：\n{item.get('insight', '')}\n\n"
-                f"🔖 *關鍵術語*：\n`{item.get('term', '')}`\n\n"
-                f"🔗 [點此閱讀原文]({item.get('url', '')})"
+    # 💡 新增：自動重試機制
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            print(f"🤖 交由 Gemini 處理批次 ({len(articles)} 篇)... (嘗試 {attempt + 1}/{max_retries})")
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt,
+                config={'response_mime_type': 'application/json'}
             )
-            send_to_telegram(tg_msg)
             
-            # 2. 組合 Google Sheets 訊息
-            sheet_msg = f"[{source_name}] {item.get('title', '')}\n啟發：{item.get('insight', '')}\n術語：{item.get('term', '')}"
-            send_to_gas(sheet_msg)
+            insights = json.loads(response.text)
             
-            # 安全間隔，保護 API 頻率限制
-            time.sleep(2)
+            for item in insights:
+                tg_msg = (
+                    f"📡 *[{source_name}]* \n\n"
+                    f"🚀 *{item.get('title', '無標題')}*\n\n"
+                    f"📝 *重點摘要*：\n{item.get('summary', '')}\n\n"
+                    f"💡 *技術洞察*：\n{item.get('insight', '')}\n\n"
+                    f"🔖 *關鍵術語*：\n`{item.get('term', '')}`\n\n"
+                    f"🔗 [點此閱讀原文]({item.get('url', '')})"
+                )
+                send_to_telegram(tg_msg)
+                
+                sheet_msg = f"[{source_name}] {item.get('title', '')}\n啟發：{item.get('insight', '')}\n術語：{item.get('term', '')}"
+                send_to_gas(sheet_msg)
+                
+                time.sleep(1) # TG 發送間隔
             
-    except Exception as e:
-        print(f"❌ AI 處理或解析發生錯誤 ({source_name}): {e}")
+            # 💡 成功處理完畢，基礎冷卻 10 秒後跳出重試迴圈
+            time.sleep(10)
+            return 
+            
+        except Exception as e:
+            error_msg = str(e)
+            # 判斷是否為 429 頻率限制
+            if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+                wait_time = (attempt + 1) * 15 # 第一次等15秒，第二次等30秒...
+                print(f"⚠️ 觸發 API 頻率限制 (429)，系統自動冷卻 {wait_time} 秒後重試...")
+                time.sleep(wait_time)
+            else:
+                print(f"❌ AI 處理發生嚴重錯誤 ({source_name}): {error_msg}")
+                break # 如果不是 429，就直接放棄該批次
 
+    print(f"❌ 批次處理失敗：已達到最大重試次數 ({source_name})")
+    
 # ================= 4. 主程式流程 =================
 
 def main():
