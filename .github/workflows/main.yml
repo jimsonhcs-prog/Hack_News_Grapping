@@ -1,0 +1,40 @@
+name: GIB Daily Insight Bot
+
+on:
+  schedule:
+    - cron: '0 */8 * * *' # 每 8 小時跑一次 (UTC 時間)
+  workflow_dispatch:      # 允許手動點擊按鈕執行
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 允許 Actions 把處理過的 URL 存回 Repo
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install trafilatura google-genai feedparser requests
+
+      - name: Run GIB Script
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          GAS_URL: ${{ secrets.GAS_URL }}
+        run: python gib_industrial.py
+
+      - name: Commit and push if database changed
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add processed_urls.json
+          git commit -m "Update processed URLs database [skip ci]" || echo "No changes to commit"
+          git push
