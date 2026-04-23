@@ -55,7 +55,7 @@ def get_full_text(url):
         if downloaded:
             result = trafilatura.extract(downloaded)
             # 限制長度，避免單篇文章消耗過多 Token
-            return result[:3000] if result else "" 
+            return result[:1200] if result else "" 
     except Exception as e:
         print(f"⚠️ 內文抓取失敗 ({url}): {e}")
     return ""
@@ -177,8 +177,8 @@ def main():
             
         new_articles = []
         
-# 每次掃描檢查最新的 10 則
-        for entry in feed.entries[:10]:
+# 每次掃描檢查最新的 5 則
+        for entry in feed.entries[:5]:
             # 防重複檢查
             if is_new_link(entry.link):
                 print(f"  🌟 發現新文章：{entry.title}")
