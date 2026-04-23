@@ -117,7 +117,7 @@ def process_batch(source_name, articles):
         try:
             print(f"🤖 交由 Gemini 處理批次 ({len(articles)} 篇)... (嘗試 {attempt + 1}/{max_retries})")
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-3-flash-preview",
                 contents=prompt,
                 config={'response_mime_type': 'application/json'}
             )
