@@ -112,7 +112,7 @@ def process_batch(source_name, articles):
     """
     
     # 💡 新增：自動重試機制
-    max_retries = 3
+    max_retries = 1
     for attempt in range(max_retries):
         try:
             print(f"🤖 交由 Gemini 處理批次 ({len(articles)} 篇)... (嘗試 {attempt + 1}/{max_retries})")
@@ -141,7 +141,7 @@ def process_batch(source_name, articles):
                 time.sleep(1) # TG 發送間隔
             
             # 💡 成功處理完畢，基礎冷卻 10 秒後跳出重試迴圈
-            time.sleep(10)
+            time.sleep(15)
             return 
             
         except Exception as e:
