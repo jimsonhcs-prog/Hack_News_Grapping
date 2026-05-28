@@ -192,42 +192,54 @@ def main():
 
     print("🔥 GIB 工業級情報引擎啟動中...")
     
-    for source_name, source_url in SOURCES.items():
-        print(f"\n🔍 開始掃描情報源：{source_name}")
-        
-        try:
-            feed = feedparser.parse(source_url)
-        except Exception as e:
-            print(f"⚠️ RSS 解析失敗 ({source_name}): {e}")
-            continue
+    try:
+        for source_name, source_url in SOURCES.items():
+            print(f"\n🔍 開始掃描情報源：{source_name}")
             
-        new_articles = []
-        
-# 每次掃描檢查最新的 5 則
-        for entry in feed.entries[:5]:
-            # 防重複檢查
-            if is_new_link(entry.link):
-                print(f"  🌟 發現新文章：{entry.title}")
+            try:
+                feed = feedparser.parse(source_url)
+            except Exception as e:
+                print(f"⚠️ RSS 解析失敗 ({source_name}): {e}")
+                continue
                 
-                # 嘗試抓取全文，若失敗則退回使用 RSS 摘要
-                full_content = get_full_text(entry.link)
-                if not full_content:
-                    full_content = entry.get('summary', entry.get('description', '無內文'))
+            new_articles = []
+            
+            # 每次掃描檢查最新的 5 則
+            for entry in feed.entries[:5]:
+                link = entry.get('link', '')
+                title = entry.get('title', '無標題')
                 
-                new_articles.append({
-                    "title": entry.title,
-                    "url": entry.link,
-                    "content": full_content[:1500] # 截斷內文以節省 Token
-                })
-            else:
-                # 👇 加上這行日誌，讓「安靜跳過」變成「看得到的跳過」
-                print(f"  ⏭️ 跳過已讀文章：{entry.title}")
+                if not link:
+                    continue
                 
-        # 批次處理：每 3 篇文章打包一次發給 Gemini，優化效能與配額
-        batch_size = 3
-        for i in range(0, len(new_articles), batch_size):
-            batch = new_articles[i:i+batch_size]
-            process_batch(source_name, batch)
+                # 防重複檢查
+                if is_new_link(link):
+                    print(f"  🌟 發現新文章：{title}")
+                    
+                    # 嘗試抓取全文，若失敗則退回使用 RSS 摘要
+                    full_content = get_full_text(link)
+                    if not full_content:
+                        full_content = entry.get('summary', entry.get('description', '無內文'))
+                    
+                    new_articles.append({
+                        "title": title,
+                        "url": link,
+                        "content": full_content[:1500] # 截斷內文以節省 Token
+                    })
+                else:
+                    print(f"  ⏭️ 跳過已讀文章：{title}")
+                    
+            # 批次處理：每 3 篇文章打包一次發給 Gemini，優化效能與配額
+            batch_size = 3
+            for i in range(0, len(new_articles), batch_size):
+                batch = new_articles[i:i+batch_size]
+                process_batch(source_name, batch)
+                
+    except Exception as e:
+        print(f"❌ 系統執行過程中發生未預期的致命錯誤：{e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
     print("\n🏁 GIB 排程執行完畢。")
 
