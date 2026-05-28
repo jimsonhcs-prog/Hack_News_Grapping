@@ -99,12 +99,12 @@ def send_to_telegram(text):
     except Exception as e:
         print(f"❌ Telegram 發送失敗: {e}")
 
-def send_to_gas(message):
-    """歸檔機制：將精簡版文字傳送至 Google Sheets"""
+def send_to_gas(data):
+    """歸檔機制：將結構化資料傳送至 Google Sheets"""
     if not GAS_URL:
         return
     try:
-        requests.post(GAS_URL, json={"message": message}, timeout=10)
+        requests.post(GAS_URL, json=data, timeout=10)
     except Exception as e:
         print(f"❌ GAS 寫入失敗: {e}")
 
@@ -160,8 +160,14 @@ def process_batch(source_name, articles):
                     )
                     send_to_telegram(tg_msg)
                     
-                    sheet_msg = f"[{source_name}] {item.get('title', '')}\n啟發：{item.get('insight', '')}\n術語：{item.get('term', '')}"
-                    send_to_gas(sheet_msg)
+                    sheet_data = {
+                        "title": item.get('title', '無標題'),
+                        "source": source_name,
+                        "insight": item.get('insight', ''),
+                        "term": item.get('term', ''),
+                        "url": item.get('url', '')
+                    }
+                    send_to_gas(sheet_data)
                     
                     time.sleep(1) # TG 發送間隔
                 
