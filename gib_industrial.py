@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import time
 import feedparser
@@ -24,6 +25,16 @@ SOURCES = {
 
 # 歷史紀錄資料庫檔名
 DB_FILE = "processed_urls.json"
+
+# 備援模型清單，依優先順序嘗試
+MODELS_BACKUP = [
+    "gemini-3.5-flash",
+    "gemini-3-flash-preview",
+    "gemini-3.1-flash-lite-preview",
+    "gemini-2.5-flash",
+    "gemini-3.1-pro-preview",
+    "gemini-2.5-flash-lite"
+]
 
 # ================= 2. 核心功能模組 =================
 
@@ -90,7 +101,7 @@ def send_to_gas(message):
 # ================= 3. AI 批次處理模組 =================
 
 def process_batch(source_name, articles):
-    """將收集好的文章批次送給 Gemini 進行結構化分析 (含自動重試機制)"""
+    """將收集好的文章批次送給 Gemini 進行結構化分析（含模型備援與自動重試機制）"""
     if not articles:
         return
     
@@ -111,58 +122,67 @@ def process_batch(source_name, articles):
     {json.dumps(articles, ensure_ascii=False)}
     """
     
-    # 💡 新增：自動重試機制
-    max_retries = 1
-    for attempt in range(max_retries):
-        try:
-            print(f"🤖 交由 Gemini 處理批次 ({len(articles)} 篇)... (嘗試 {attempt + 1}/{max_retries})")
-            response = client.models.generate_content(
-                model="gemini-3-flash-preview",
-                contents=prompt,
-                config={'response_mime_type': 'application/json'}
-            )
-            
-            insights = json.loads(response.text)
-            
-            for item in insights:
-                tg_msg = (
-                    f"📡 *[{source_name}]* \n\n"
-                    f"🚀 *{item.get('title', '無標題')}*\n\n"
-                    f"📝 *重點摘要*：\n{item.get('summary', '')}\n\n"
-                    f"💡 *技術洞察*：\n{item.get('insight', '')}\n\n"
-                    f"🔖 *關鍵術語*：\n`{item.get('term', '')}`\n\n"
-                    f"🔗 [點此閱讀原文]({item.get('url', '')})"
+    # 遍歷所有備援模型，依序進行處理
+    for model_name in MODELS_BACKUP:
+        # 針對每個模型的重試機制，例如處理 429 頻率限制的重試
+        max_retries = 1
+        for attempt in range(max_retries):
+            try:
+                print(f"🤖 嘗試使用模型【{model_name}】處理批次 ({len(articles)} 篇)... (嘗試 {attempt + 1}/{max_retries})")
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config={'response_mime_type': 'application/json'}
                 )
-                send_to_telegram(tg_msg)
                 
-                sheet_msg = f"[{source_name}] {item.get('title', '')}\n啟發：{item.get('insight', '')}\n術語：{item.get('term', '')}"
-                send_to_gas(sheet_msg)
+                insights = json.loads(response.text)
                 
-                time.sleep(1) # TG 發送間隔
-            
-            # 💡 成功處理完畢，基礎冷卻 10 秒後跳出重試迴圈
-            time.sleep(15)
-            return 
-            
-        except Exception as e:
-            error_msg = str(e)
-            
-            # 👇 就是這行！這是拔掉遮罩的終極指令，讓 Google 告訴我們它到底在抱怨什麼
-            print(f"🛑 [深度除錯] 來自 Google 的真實報錯：\n{error_msg}\n-------------------")
-            
-            # 判斷是否為 429 頻率限制
-            if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
-                wait_time = (attempt + 1) * 15 # 第一次等15秒，第二次等30秒...
-                print(f"⚠️ 觸發 API 頻率限制 (429)，系統自動冷卻 {wait_time} 秒後重試...")
-                time.sleep(wait_time)
-            else:
-                print(f"❌ AI 處理發生嚴重錯誤 ({source_name}): {error_msg}")
-                break # 如果不是 429，就直接放棄該批次
+                for item in insights:
+                    tg_msg = (
+                        f"📡 *[{source_name}]* \n\n"
+                        f"🚀 *{item.get('title', '無標題')}*\n\n"
+                        f"📝 *重點摘要*：\n{item.get('summary', '')}\n\n"
+                        f"💡 *技術洞察*：\n{item.get('insight', '')}\n\n"
+                        f"🔖 *關鍵術語*：\n`{item.get('term', '')}`\n\n"
+                        f"🔗 [點此閱讀原文]({item.get('url', '')})"
+                    )
+                    send_to_telegram(tg_msg)
+                    
+                    sheet_msg = f"[{source_name}] {item.get('title', '')}\n啟發：{item.get('insight', '')}\n術語：{item.get('term', '')}"
+                    send_to_gas(sheet_msg)
+                    
+                    time.sleep(1) # TG 發送間隔
+                
+                # 成功處理完畢，基礎冷卻 15 秒後跳出重試與備援迴圈
+                time.sleep(15)
+                return 
+                
+            except Exception as e:
+                error_msg = str(e)
+                print(f"🛑 [深度除錯] 嘗試模型【{model_name}】失敗，真實報錯：\n{error_msg}\n-------------------")
+                
+                # 判斷是否為 429 頻率限制，若是則在該模型下進行冷卻重試
+                if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+                    wait_time = (attempt + 1) * 15
+                    print(f"⚠️ 觸發 API 頻率限制 (429)，系統自動冷卻 {wait_time} 秒後重試該模型...")
+                    time.sleep(wait_time)
+                else:
+                    # 如果不是 429，可能是模型不存在（404）或不支援，跳出重試迴圈並切換到下一個備援模型
+                    print(f"❌ 模型【{model_name}】發生嚴重錯誤，準備切換至下一個備援模型。")
+                    break
+                    
+    print(f"❌ 嚴重錯誤：已嘗試所有備援模型，皆無法成功處理批次 ({source_name})。")
                 
     
 # ================= 4. 主程式流程 =================
 
 def main():
+    # 解決 Windows 環境下 stdout/stderr 預設編碼 (例如 CP950) 無法編碼 Emoji 的問題
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+    if hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(encoding='utf-8')
+
     if not GEMINI_API_KEY:
         print("❌ 致命錯誤：找不到 GEMINI_API_KEY 環境變數！")
         return
