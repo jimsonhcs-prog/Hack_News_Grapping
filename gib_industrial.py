@@ -2,11 +2,20 @@ import os
 import sys
 import json
 import time
-import feedparser
-import requests
-import trafilatura
-from google import genai
-from google.genai import types
+
+try:
+    import feedparser
+    import requests
+    import trafilatura
+    from google import genai
+    from google.genai import types
+except ModuleNotFoundError as e:
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+    print(f"❌ 致命錯誤：缺少必要的 Python 套件【{e.name}】！")
+    print("👉 請在您的執行環境或 GitHub Actions workflow 中，執行以下指令安裝依賴：")
+    print("   pip install -r requirements.txt")
+    sys.exit(1)
 
 # ================= 1. 系統配置區 =================
 # 從環境變數讀取機密資訊 (保護你的金鑰不外流)
