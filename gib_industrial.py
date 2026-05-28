@@ -195,6 +195,14 @@ def main():
     if hasattr(sys.stderr, 'reconfigure'):
         sys.stderr.reconfigure(encoding='utf-8')
 
+    # 確保資料庫檔案存在，防止 CI/CD 執行 git add 時因檔案缺失崩潰
+    if not os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "w", encoding="utf-8") as f:
+                json.dump([], f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"⚠️ 無法初始化資料庫檔案：{e}")
+
     if not GEMINI_API_KEY:
         print("❌ 致命錯誤：找不到 GEMINI_API_KEY 環境變數！")
         sys.exit(1)
