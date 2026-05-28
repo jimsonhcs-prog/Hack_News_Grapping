@@ -2,7 +2,7 @@ name: GIB Daily Insight Bot
 
 on:
   schedule:
-    - cron: '0 */8 * * *' # 每 8 小時跑一次 (UTC 時間)
+    - cron: '0 6 * * *' # 每日執行一次 (UTC 時間 00:00，台灣時間 08:00)
   workflow_dispatch:      # 允許手動點擊按鈕執行
 
 jobs:
