@@ -36,5 +36,11 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add processed_urls.json
-          git commit -m "Update processed URLs database [skip ci]" || echo "No changes to commit"
-          git push
+          # 檢查是否有已暫存的變更需要提交，避免不必要的 commit 與 push
+          if ! git diff --cached --quiet; then
+            git commit -m "Update processed URLs database [skip ci]"
+            # 使用 HEAD:分支名 推送，解決 Actions 在 detached HEAD 狀態下無法直接 push 的問題
+            git push origin HEAD:${{ github.ref_name }}
+          else
+            echo "No changes in database to commit"
+          fi
