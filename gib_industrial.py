@@ -6,6 +6,7 @@ import feedparser
 import requests
 import trafilatura
 from google import genai
+from google.genai import types
 
 # ================= 1. 系統配置區 =================
 # 從環境變數讀取機密資訊 (保護你的金鑰不外流)
@@ -132,7 +133,9 @@ def process_batch(source_name, articles):
                 response = client.models.generate_content(
                     model=model_name,
                     contents=prompt,
-                    config={'response_mime_type': 'application/json'}
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json"
+                    )
                 )
                 
                 insights = json.loads(response.text)
@@ -171,7 +174,7 @@ def process_batch(source_name, articles):
                     print(f"❌ 模型【{model_name}】發生嚴重錯誤，準備切換至下一個備援模型。")
                     break
                     
-    print(f"❌ 嚴重錯誤：已嘗試所有備援模型，皆無法成功處理批次 ({source_name})。")
+    raise RuntimeError(f"已嘗試所有備援模型，皆無法成功處理批次 ({source_name})。")
                 
     
 # ================= 4. 主程式流程 =================
@@ -185,7 +188,7 @@ def main():
 
     if not GEMINI_API_KEY:
         print("❌ 致命錯誤：找不到 GEMINI_API_KEY 環境變數！")
-        return
+        sys.exit(1)
 
     print("🔥 GIB 工業級情報引擎啟動中...")
     
