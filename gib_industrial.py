@@ -38,12 +38,16 @@ DB_FILE = "processed_urls.json"
 
 # 備援模型清單，依優先順序嘗試
 MODELS_BACKUP = [
-    "gemini-3.5-flash",
-    "gemini-3-flash-preview",
-    "gemini-3.1-flash-lite-preview",
-    "gemini-2.5-flash",
-    "gemini-3.1-pro-preview",
-    "gemini-2.5-flash-lite"
+    "gemini-flash-latest",	            #自動跟隨 Flash 主力最新穩定版
+    "gemini-flash-lite-latest",	        #自動跟隨 Flash-Lite 最新穩定版
+    "gemini-pro-latest",                #高階備援
+    "gemini-3.8-flash",	                #最新版高智商推論旗艦
+    "gemini-3.7-flash",
+    "gemini-3.6-flash",	                #通用主力：標準代碼生成、邏輯推理
+    "gemini-3.5-flash-lite",	        #強烈推薦：新一代極速輕量推論
+    "gemini-3.1-flash-lite",	        #強烈推薦：盤後即時分析、極速推論、高性價比
+    "gemini-3-flash-preview",	        #預覽版通用推論
+    "gemini-3.1-flash-lite-preview",	#輕量預覽版功能測試
 ]
 
 # ================= 2. 核心功能模組 =================
